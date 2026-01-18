@@ -1,33 +1,33 @@
-# MiBand Heart Rate Demo
+# MiBand Heart Rate RESTful
+OpenDR Team Internal Codename:Hagu([how it came about](https://projectsekai.fandom.com/wiki/Hug))
+> A miband heart rate branch that supports RESTful API and WebSocket services   
+> Powered by Actix
+> 
+Supported platform and supported MiBands see origin project :[MIBand Heart Rate Demo](https://github.com/Tnze/miband-heart-rate)
+# Quick Start
+Download the latest release from [GitHub Releases](https://github.com/YuxiangWang0525/miband-heart-rate-RESTful/releases)  
+1. Create a folder named `static` in the same directory as `miband-heart-rate.exe`
+2. Run `miband-heart-rate.exe`, program will listening on port 28040
+3. Turn on the heart rate broadcast function on your Miband and select any sport (recommended "free activity")
+4. Waiting for the program to search for the wristband BLE broadcast. 
+> When the connection is successful, the console will output heart rate information. At the same time, MiBand will vibrate
+5. Put the frontend files in the static directory,and add browser sources to streaming software such as OBS. Set as address http://localhost:28040(optional)
+# API Document
+Endpoint: [host]:28040  
+## GET /api/heart-rate
+Get heart rate data from the last record.  
+JSON
 
-> For miband 4~7, checkout `miband-4-to-7` tag
->
-> 对于小米手环 4~7，请切换到 `miband-4-to-7` 标签
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `value` | `int` | last record of heart rate |
+| `sensor_contact_detected` | `"string"` | - |
+| `timestamp` | `int` | timestamp of last record |
+## WebSocket /api/ws
+WebSocket service for real-time heart rate data.
+> The heart rate data is sent to the client when a new record is received.
+The content is consistent with /api/heart-rate
 
-A Demo of reading "Shear heart rate data" of Xiaomi Smart Band 10. Enable the option in official App is required.
-
-接收小米手环10 “运动心率广播” Demo，需在手环设置-心率广播中开启广播功能。
-
-欢迎二次开发。
-
-## Supported Platform
-
-I use `bluest` crate. I copy its words below.
-
-> Bluest is a cross-platform Bluetooth Low Energy (BLE) library for Rust. It currently supports Windows (version 10 and later), MacOS/iOS, and Linux. Android support is planned.
-
-So it supported:
-
-- Windows 10/11
-- MacOS/iOS
-- Linux
-
-## Supported MiBands
-
-MiBand 10 小米手环 10
-
-Tested on MiBand10/NFC.
-
-## Screenshot
-
-![Alt text](doc/screenshot.png)
+# About frontend file
+I have prepared a small component frontend for reference:[heart-rate-widget-projectsekai](https://github.com/YuxiangWang0525/heart-rate-widget-projectsekai).  
+It is also a template repository You can use it to create your own widgets

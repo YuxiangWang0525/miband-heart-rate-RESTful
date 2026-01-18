@@ -11,7 +11,7 @@ use tokio::sync::{RwLock, broadcast};
 use tokio::time::{sleep, Duration};
 use actix_web::rt::spawn;
 
-// 定义心率数据结构
+// Define heart rate data structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HeartRateData {
     pub value: u16,
@@ -19,7 +19,7 @@ pub struct HeartRateData {
     pub timestamp: u64,
 }
 
-// 全局状态管理
+// Global state management
 #[derive(Clone)]
 pub struct AppState {
     pub heart_rate_data: Arc<RwLock<Option<HeartRateData>>>,
@@ -33,16 +33,16 @@ const HRM_UUID: Uuid = bluetooth_uuid_from_u16(0x2A37);
 async fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
 
-    // 创建广播通道用于WebSocket推送
+    // Create broadcast channel for WebSocket push
     let (tx, _) = broadcast::channel::<HeartRateData>(100);
 
-    // 创建全局状态
+    // Create global state
     let app_state = AppState {
         heart_rate_data: Arc::new(RwLock::new(None)),
         tx,
     };
 
-    // 启动蓝牙监听任务
+    // Start Bluetooth monitoring task
     let state_clone = app_state.clone();
     spawn(async move {
         if let Err(e) = start_bluetooth_monitor(state_clone).await {
@@ -50,7 +50,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
     });
 
-    // 启动Web服务器
+    // Start Web server
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(app_state.clone()))
@@ -75,7 +75,7 @@ fn cors_config() -> Cors {
         .supports_credentials()
 }
 
-// 获取当前心率数据的API端点
+// API endpoint to get current heart rate data
 async fn get_heart_rate(data: web::Data<AppState>) -> Result<HttpResponse> {
     let heart_rate = data.heart_rate_data.read().await.clone();
     
@@ -101,10 +101,10 @@ async fn ws_handler(
 ) -> Result<actix_web::HttpResponse> {
     let (response, mut session, msg_stream) = actix_ws::handle(&req, stream)?;
 
-    // 订阅广播通道
+    // Subscribe to broadcast channel
     let mut rx = data.tx.subscribe();
 
-    // 发送当前心率数据给新连接的客户端
+    // Send current heart rate data to newly connected clients
     {
         let current_data = data.heart_rate_data.read().await.clone();
         if let Some(hr_data) = current_data {
@@ -112,11 +112,11 @@ async fn ws_handler(
         }
     }
 
-    // 创建一个标志来控制任务生命周期
+    // Create a flag to control task lifecycle
     let session_closed = Arc::new(tokio::sync::Notify::new());
     let session_closed_clone = session_closed.clone();
 
-    // 启动消息处理任务
+    // Start message handling task
     let mut session_for_msg = session.clone();
     actix_web::rt::spawn(async move {
         let mut msg_stream = msg_stream;
@@ -130,7 +130,7 @@ async fn ws_handler(
                 }
                 Ok(actix_ws::Message::Pong(_)) => {}
                 Ok(actix_ws::Message::Text(text)) => {
-                    // 响应简单的ping消息
+                    // Respond to simple ping message
                     if text == "ping" {
                         if session_for_msg.text("pong").await.is_err() {
                             break;
@@ -143,10 +143,10 @@ async fn ws_handler(
                 Err(_) | Ok(_) => break,
             }
         }
-        session_closed_clone.notify_waiters(); // 通知其他任务连接已关闭
+        session_closed_clone.notify_waiters(); // Notify other tasks that connection is closed
     });
 
-    // 启动消息转发任务
+    // Start message forwarding task
     let mut session_for_broadcasts = session;
     let closed_notifier = session_closed.clone();
     actix_web::rt::spawn(async move {
@@ -154,12 +154,12 @@ async fn ws_handler(
             tokio::select! {
                 Ok(heart_rate_data) = rx.recv() => {
                     if session_for_broadcasts.text(serde_json::to_string(&heart_rate_data).unwrap()).await.is_err() {
-                        // 如果发送失败，退出循环
+                        // Exit loop if sending fails
                         break;
                     }
                 }
                 _ = closed_notifier.notified() => {
-                    // 当连接关闭时退出
+                    // Exit when connection is closed
                     break;
                 }
             }
@@ -169,7 +169,7 @@ async fn ws_handler(
     Ok(response)
 }
 
-// 开始蓝牙监控任务
+// Start Bluetooth monitoring task
 async fn start_bluetooth_monitor(app_state: AppState) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let adapter = Adapter::default()
         .await
@@ -184,11 +184,11 @@ async fn start_bluetooth_monitor(app_state: AppState) -> Result<(), Box<dyn std:
             if let Some(device) = connected_heart_rate_devices.into_iter().next() {
                 device
             } else {
-                println!("Starting scan");
+                println!("Ready to scan");
                 let mut scan = adapter.discover_devices(&[HRS_UUID]).await
                     .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
 
-                println!("Scan started");
+                println!("Scanning devices");
                 let device = scan.next().await
                     .ok_or("No device found")?
                     .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
@@ -200,7 +200,7 @@ async fn start_bluetooth_monitor(app_state: AppState) -> Result<(), Box<dyn std:
 
         if let Err(err) = handle_device(&adapter, &device, &app_state).await {
             println!("Connection error: {err:?}");
-            // 等待一段时间再重试
+            // Wait for a period before retrying
             sleep(Duration::from_secs(5)).await;
         }
     }
@@ -258,13 +258,13 @@ async fn handle_device(adapter: &Adapter, device: &Device, app_state: &AppState)
         
         println!("HeartRateValue: {heart_rate_value}, SensorContactDetected: {sensor_contact:?}");
 
-        // 更新全局状态
+        // Update global state
         {
             let mut state = app_state.heart_rate_data.write().await;
             *state = Some(heart_rate_data.clone());
         }
 
-        // 通过广播通道发送到所有WebSocket客户端
+        // Send to all WebSocket clients via broadcast channel
         let _ = app_state.tx.send(heart_rate_data);
     }
     
